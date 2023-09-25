@@ -11,7 +11,7 @@
         "Docker": {
             "EnvironmentVariables": [
                 {{if .PromptEnv}}{{.PromptEnv}}{{else}}"PROMPT=question mark floating in space"{{end}},
-                {{if .RandomSeedEnv}}{{.RandomSeedEnv}}{{else}}"RANDOM_SEED=42"{{end}},
+                {{if .SeedEnv}}{{.SeedEnv}}{{else}}"RANDOM_SEED=42"{{end}},
                 {{if .FinetuneWeightingEnv}}{{.FinetuneWeightingEnv}}{{else}}"FINETUNE_WEIGHTING=0.5"{{end}},
                 "HF_HUB_OFFLINE=1",
             ],
