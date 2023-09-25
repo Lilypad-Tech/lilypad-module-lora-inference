@@ -10,10 +10,15 @@
         },
         "Docker": {
             "EnvironmentVariables": [
-                {{if .SeedEnv}}{{.SeedEnv}}{{else}}"RANDOM_SEED=42"{{end}},
+                {{if .PromptEnv}}{{.PromptEnv}}{{else}}"PROMPT=question mark floating in space"{{end}},
+                {{if .RandomSeedEnv}}{{.RandomSeedEnv}}{{else}}"RANDOM_SEED=42"{{end}},
+                {{if .FinetuneWeightingEnv}}{{.FinetuneWeightingEnv}}{{else}}"FINETUNE_WEIGHTING=0.5"{{end}},
+                "HF_HUB_OFFLINE=1",
             ],
             "Entrypoint": [
-                "bash", "-c", "(cd /input && unzip images.zip && rm images.zip) && lora_pti --pretrained_model_name_or_path=runwayml/stable-diffusion-v1-5 --instance_data_dir=/input --output_dir=/output --train_text_encoder --resolution=512 --train_batch_size=1 --gradient_accumulation_steps=4 --scale_lr --learning_rate_unet=1e-4 --learning_rate_text=1e-5 --learning_rate_ti=5e-4 --color_jitter --lr_scheduler='linear' --lr_warmup_steps=0 --placeholder_tokens='<s1>|<s2>' --use_template='style' --save_steps=100 --max_train_steps_ti=1000 --max_train_steps_tuning=1000 --perform_inversion=True --clip_ti_decay --weight_decay_ti=0.000 --weight_decay_lora=0.001 --continue_inversion --continue_inversion_lr=1e-4 --device='cuda:0' --lora_rank=1"
+                "python3",
+                "-c",
+                "from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler\nimport os\nimport torch\nfrom lora_diffusion import tune_lora_scale, patch_pipe\n\nmodel_id = \"runwayml/stable-diffusion-v1-5\"\n\npipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16).to(\n    \"cuda\"\n)\npipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)\n\nprompt = os.getenv(\"PROMPT\")\nseed = int(os.getenv(\"RANDOM_SEED\"))\ntorch.manual_seed(seed)\n\nos.system(\"find /input\")\npatch_pipe(\n    pipe,\n    \"/input/output/final_lora.safetensors\",\n    patch_text=True,\n    patch_ti=True,\n    patch_unet=True,\n)\n\ncoeff = float(os.getenv(\"FINETUNE_WEIGHTING\", 0.5))\ntune_lora_scale(pipe.unet, coeff)\ntune_lora_scale(pipe.text_encoder, coeff)\n\nimage = pipe(prompt, num_inference_steps=50, guidance_scale=7).images[0]\nimage.save(f\"/output/image-{seed}.jpg\")\nimage\n"
             ],
             "Image": "quay.io/lukemarsden/lora:v0.0.4",
         },
@@ -37,11 +42,10 @@
         },
         "inputs": [
             {
-                "CID": {{.ImagesCID}},
+                "CID": {{.LoraCID}},
                 "Name": "lora_input",
                 "StorageSource": "IPFS",
                 "path": "/input",
-
             },
         ],
         "outputs": [
@@ -49,7 +53,7 @@
                 "Name": "output",
                 "StorageSource": "IPFS",
                 "path": "/output"
-            }
+            },
         ]
     }
 }
